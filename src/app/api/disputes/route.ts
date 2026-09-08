@@ -22,3 +22,15 @@ export async function POST(request: Request) {
   } catch (error) { return jsonError(error); }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const user = await requireUser([UserRole.ADMIN]);
+    const data = await body<{ id?: string; status?: "RESOLVED" | "REJECTED"; resolution?: string }>(request);
+    const id = required(data.id, "争议 ID");
+    if (data.status !== "RESOLVED" && data.status !== "REJECTED") throw new ApiError("请选择有效的处理结论");
+    const resolution = required(data.resolution, "处理说明");
+    const dispute = await prisma.dispute.update({ where: { id }, data: { status: data.status, resolution, resolvedById: user.id } });
+    await audit(user.id, "DISPUTE_RESOLVED", "Dispute", id, { status: data.status });
+    return Response.json({ dispute });
+  } catch (error) { return jsonError(error); }
+}
