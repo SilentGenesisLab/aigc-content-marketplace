@@ -1,6 +1,6 @@
-import { devices, expect, test, type Browser, type BrowserContext } from "@playwright/test";
+import { devices, expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
-const password = "e2e-only-password";
+const password = process.env.E2E_DEMO_PASSWORD || "e2e-only-password";
 
 async function login(browser: Browser, phone: string, mobile: boolean) {
   const context = await browser.newContext(mobile ? devices["Pixel 7"] : devices["Desktop Chrome"]);
@@ -15,6 +15,10 @@ async function login(browser: Browser, phone: string, mobile: boolean) {
 
 async function closeAll(contexts: BrowserContext[]) {
   await Promise.all(contexts.map((context) => context.close()));
+}
+
+function workCard(page: Page, title: string) {
+  return page.locator("article.card").filter({ hasText: title });
 }
 
 test("发单、审核、报名、中选、Brief、两版交付、验收和评价", async ({ browser }, testInfo) => {
@@ -63,48 +67,50 @@ test("发单、审核、报名、中选、Brief、两版交付、验收和评价
     await expect(client.page.getByText("履约子订单")).toBeVisible();
 
     await creator.page.goto("/work");
-    await creator.page.getByRole("button", { name: "确认 Brief 并开始" }).click();
-    await expect(creator.page.getByText("制作中", { exact: true })).toBeVisible();
-    await creator.page.getByRole("button", { name: "提交交付版本" }).click();
-    await creator.page.getByPlaceholder("版本名称").fill("初版交付");
-    await creator.page.locator('input[name="file"]').setInputFiles({ name: "first.txt", mimeType: "text/plain", buffer: Buffer.from("first delivery") });
-    await creator.page.getByPlaceholder("本版说明").fill("首版");
-    await creator.page.getByPlaceholder("使用的 AI 工具，以逗号分隔").fill("OpenAI");
-    await creator.page.getByPlaceholder("素材来源和许可说明").fill("自有测试素材");
-    await creator.page.getByLabel("素材可商用").check();
-    await creator.page.getByLabel("人物肖像已授权").check();
-    await creator.page.getByLabel("克隆声音已授权/未使用").check();
-    await creator.page.getByLabel("品牌元素已授权/未使用").check();
-    await creator.page.getByRole("button", { name: "提交版本与合规声明" }).click();
-    await expect(creator.page.getByText("待验收", { exact: true })).toBeVisible();
+    const creatorWork = workCard(creator.page, title);
+    await creatorWork.getByRole("button", { name: "确认 Brief 并开始" }).click();
+    await expect(creatorWork.getByText("制作中", { exact: true })).toBeVisible();
+    await creatorWork.getByRole("button", { name: "提交交付版本" }).click();
+    await creatorWork.getByPlaceholder("版本名称").fill("初版交付");
+    await creatorWork.locator('input[name="file"]').setInputFiles({ name: "first.txt", mimeType: "text/plain", buffer: Buffer.from("first delivery") });
+    await creatorWork.getByPlaceholder("本版说明").fill("首版");
+    await creatorWork.getByPlaceholder("使用的 AI 工具，以逗号分隔").fill("OpenAI");
+    await creatorWork.getByPlaceholder("素材来源和许可说明").fill("自有测试素材");
+    await creatorWork.getByLabel("素材可商用").check();
+    await creatorWork.getByLabel("人物肖像已授权").check();
+    await creatorWork.getByLabel("克隆声音已授权/未使用").check();
+    await creatorWork.getByLabel("品牌元素已授权/未使用").check();
+    await creatorWork.getByRole("button", { name: "提交版本与合规声明" }).click();
+    await expect(creatorWork.getByText("待验收", { exact: true })).toBeVisible();
 
     await client.page.goto("/work");
-    await client.page.getByRole("button", { name: "退回修改" }).click();
-    await client.page.getByPlaceholder("不符合的验收条款").fill("画面节奏需符合验收条款");
-    await client.page.getByPlaceholder("验证证据或时间点").fill("第 12 秒转场偏慢");
-    await client.page.getByPlaceholder("具体修改说明").fill("缩短转场并重新提交");
-    await client.page.getByRole("button", { name: "确认退回" }).click();
-    await expect(client.page.getByText("需修改", { exact: true })).toBeVisible();
+    const clientWork = workCard(client.page, title);
+    await clientWork.getByRole("button", { name: "退回修改" }).click();
+    await clientWork.getByPlaceholder("不符合的验收条款").fill("画面节奏需符合验收条款");
+    await clientWork.getByPlaceholder("验证证据或时间点").fill("第 12 秒转场偏慢");
+    await clientWork.getByPlaceholder("具体修改说明").fill("缩短转场并重新提交");
+    await clientWork.getByRole("button", { name: "确认退回" }).click();
+    await expect(clientWork.getByText("需修改", { exact: true })).toBeVisible();
 
     await creator.page.goto("/work");
-    await creator.page.getByRole("button", { name: "提交修改版本" }).click();
-    await creator.page.getByPlaceholder("版本名称").fill("最终修改版");
-    await creator.page.locator('input[name="file"]').setInputFiles({ name: "final.txt", mimeType: "text/plain", buffer: Buffer.from("final delivery") });
-    await creator.page.getByPlaceholder("本版说明").fill("已调整转场");
-    await creator.page.getByPlaceholder("使用的 AI 工具，以逗号分隔").fill("OpenAI");
-    await creator.page.getByPlaceholder("素材来源和许可说明").fill("自有测试素材");
-    for (const label of ["素材可商用", "人物肖像已授权", "克隆声音已授权/未使用", "品牌元素已授权/未使用"]) await creator.page.getByLabel(label).check();
-    await creator.page.getByRole("button", { name: "提交版本与合规声明" }).click();
-    await expect(creator.page.getByText("待验收", { exact: true })).toBeVisible();
+    await creatorWork.getByRole("button", { name: "提交修改版本" }).click();
+    await creatorWork.getByPlaceholder("版本名称").fill("最终修改版");
+    await creatorWork.locator('input[name="file"]').setInputFiles({ name: "final.txt", mimeType: "text/plain", buffer: Buffer.from("final delivery") });
+    await creatorWork.getByPlaceholder("本版说明").fill("已调整转场");
+    await creatorWork.getByPlaceholder("使用的 AI 工具，以逗号分隔").fill("OpenAI");
+    await creatorWork.getByPlaceholder("素材来源和许可说明").fill("自有测试素材");
+    for (const label of ["素材可商用", "人物肖像已授权", "克隆声音已授权/未使用", "品牌元素已授权/未使用"]) await creatorWork.getByLabel(label).check();
+    await creatorWork.getByRole("button", { name: "提交版本与合规声明" }).click();
+    await expect(creatorWork.getByText("待验收", { exact: true })).toBeVisible();
 
     await client.page.goto("/work");
-    await client.page.getByRole("button", { name: "验收通过并确权" }).click();
-    await client.page.getByPlaceholder("验收验证说明").fill("分辨率、时长、标识和修改项全部通过");
-    await client.page.getByRole("button", { name: "确认验收与权利转移" }).click();
-    await expect(client.page.getByText("已验收", { exact: true })).toBeVisible();
-    await client.page.getByPlaceholder("基于真实履约写下评价").fill("按 Brief 完成交付，修改响应及时");
-    await client.page.getByRole("button", { name: "提交评价" }).click();
-    await expect(client.page.getByText(/权利确认：/).first()).toBeVisible();
+    await clientWork.getByRole("button", { name: "验收通过并确权" }).click();
+    await clientWork.getByPlaceholder("验收验证说明").fill("分辨率、时长、标识和修改项全部通过");
+    await clientWork.getByRole("button", { name: "确认验收与权利转移" }).click();
+    await expect(clientWork.getByText("已验收", { exact: true })).toBeVisible();
+    await clientWork.getByPlaceholder("基于真实履约写下评价").fill("按 Brief 完成交付，修改响应及时");
+    await clientWork.getByRole("button", { name: "提交评价" }).click();
+    await expect(clientWork.getByText(/权利确认：/)).toBeVisible();
 
     await admin.page.goto("/admin");
     await expect(admin.page.getByRole("heading", { name: "平台管理" })).toBeVisible();

@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 const e2eSecret = "e2e-browser-secret";
-const demoPassword = "e2e-only-password";
+const demoPassword = process.env.E2E_DEMO_PASSWORD || "e2e-only-password";
 const seed = String(Date.now() % 1_000_000).padStart(6, "0");
 
 function phone(projectName: string, offset: number) {
