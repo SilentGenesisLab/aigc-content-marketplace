@@ -1,0 +1,309 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CLIENT
+  CREATOR
+  ADMIN
+}
+
+enum OrderMode {
+  MULTI_DELIVERY
+  CONTEST
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_REVIEW
+  OPEN
+  SELECTING
+  IN_PRODUCTION
+  PENDING_ACCEPTANCE
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  SELECTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum SubOrderStatus {
+  PENDING_CONFIRMATION
+  IN_PRODUCTION
+  SUBMITTED
+  NEEDS_CHANGES
+  PENDING_ACCEPTANCE
+  ACCEPTED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  SUBMITTED
+  FEEDBACK
+  REPLACED
+  FINAL
+}
+
+enum DisputeStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  REJECTED
+}
+
+model User {
+  id                String          @id @default(cuid())
+  phone             String          @unique
+  passwordHash      String
+  name              String
+  role              UserRole
+  avatarColor       String          @default("#3157D5")
+  creatorProfile    CreatorProfile?
+  portfolios        Portfolio[]
+  orders            Order[]         @relation("OrderClient")
+  applications      Application[]   @relation("ApplicationCreator")
+  subOrders         SubOrder[]      @relation("SubOrderCreator")
+  reviewsGiven      Review[]        @relation("ReviewAuthor")
+  reviewsReceived   Review[]        @relation("ReviewTarget")
+  revisionRequests  RevisionRequest[]
+  disputesOpened    Dispute[]       @relation("DisputeOpener")
+  disputesResolved  Dispute[]       @relation("DisputeResolver")
+  auditLogs         AuditLog[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model CreatorProfile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  bio        String   @default("")
+  skills     String[]
+  platforms  String[]
+  styles     String[]
+  available  Boolean  @default(true)
+  verified   Boolean  @default(false)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Portfolio {
+  id          String   @id @default(cuid())
+  creatorId   String
+  title       String
+  description String   @default("")
+  fileUrl     String
+  coverUrl    String?
+  contentType String   @default("VIDEO")
+  isPublic    Boolean  @default(true)
+  creator     User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([creatorId, isPublic])
+}
+
+model Order {
+  id                 String          @id @default(cuid())
+  code               String          @unique
+  clientId           String
+  title              String
+  objective          String
+  topic              String
+  quantity           Int
+  duration           String
+  platform           String
+  aspectRatio        String
+  audience           String
+  style              String
+  referenceUrls      String[]
+  forbiddenElements  String          @default("")
+  deadline           DateTime
+  acceptanceCriteria String
+  mode               OrderMode
+  slots              Int             @default(1)
+  sampleRequired     Boolean         @default(false)
+  status             OrderStatus     @default(DRAFT)
+  reviewNote         String?
+  publishedAt        DateTime?
+  client             User            @relation("OrderClient", fields: [clientId], references: [id])
+  applications       Application[]
+  snapshots          BriefSnapshot[]
+  subOrders          SubOrder[]
+  disputes           Dispute[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([status, deadline])
+  @@index([clientId, createdAt])
+}
+
+model Application {
+  id           String            @id @default(cuid())
+  orderId      String
+  creatorId    String
+  pitch        String
+  portfolioIds String[]
+  status       ApplicationStatus @default(APPLIED)
+  order        Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  creator      User              @relation("ApplicationCreator", fields: [creatorId], references: [id])
+  subOrder     SubOrder?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([orderId, creatorId])
+  @@index([orderId, status])
+}
+
+model BriefSnapshot {
+  id         String     @id @default(cuid())
+  orderId    String
+  version    Int
+  content    Json
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  subOrders  SubOrder[]
+  createdAt  DateTime   @default(now())
+
+  @@unique([orderId, version])
+}
+
+model SubOrder {
+  id                    String         @id @default(cuid())
+  code                  String         @unique
+  orderId               String
+  applicationId         String         @unique
+  creatorId             String
+  briefSnapshotId       String
+  status                SubOrderStatus @default(PENDING_CONFIRMATION)
+  creatorConfirmedAt    DateTime?
+  objection             String?
+  objectionResolvedAt   DateTime?
+  order                 Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  application           Application    @relation(fields: [applicationId], references: [id])
+  creator               User           @relation("SubOrderCreator", fields: [creatorId], references: [id])
+  briefSnapshot         BriefSnapshot  @relation(fields: [briefSnapshotId], references: [id])
+  deliveries            DeliveryVersion[]
+  reviews               Review[]
+  rightsReceipt         RightsReceipt?
+  disputes              Dispute[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([creatorId, status])
+  @@index([orderId, status])
+}
+
+model DeliveryVersion {
+  id           String                @id @default(cuid())
+  subOrderId   String
+  version      Int
+  title        String
+  fileUrl      String
+  previewUrl   String?
+  note         String                @default("")
+  status       DeliveryStatus        @default(SUBMITTED)
+  subOrder     SubOrder              @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  compliance   ComplianceDeclaration?
+  revisions    RevisionRequest[]
+  rightsFor    RightsReceipt[]        @relation("FinalDelivery")
+  createdAt    DateTime              @default(now())
+
+  @@unique([subOrderId, version])
+}
+
+model RevisionRequest {
+  id         String          @id @default(cuid())
+  deliveryId String
+  clientId   String
+  criteria   String
+  evidence   String
+  note       String
+  resolvedAt DateTime?
+  delivery   DeliveryVersion @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  client     User            @relation(fields: [clientId], references: [id])
+  createdAt  DateTime        @default(now())
+}
+
+model ComplianceDeclaration {
+  id                    String          @id @default(cuid())
+  deliveryId            String          @unique
+  aiTools               String[]
+  materialSources       String
+  commercialLicense     Boolean
+  portraitAuthorization Boolean
+  voiceAuthorization    Boolean
+  brandAuthorization    Boolean
+  generatedContent      Boolean         @default(true)
+  delivery              DeliveryVersion @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  createdAt             DateTime        @default(now())
+}
+
+model RightsReceipt {
+  id                     String          @id @default(cuid())
+  subOrderId             String          @unique
+  finalDeliveryId        String
+  scope                  String
+  clientCommercialRights Boolean         @default(true)
+  portfolioPermission    Boolean         @default(false)
+  acceptedAt             DateTime        @default(now())
+  subOrder               SubOrder        @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  finalDelivery          DeliveryVersion @relation("FinalDelivery", fields: [finalDeliveryId], references: [id])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  subOrderId String
+  authorId   String
+  targetId   String
+  rating     Int
+  comment    String
+  subOrder   SubOrder @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  author     User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  target     User     @relation("ReviewTarget", fields: [targetId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([subOrderId, authorId])
+  @@index([targetId, createdAt])
+}
+
+model Dispute {
+  id           String        @id @default(cuid())
+  orderId      String
+  subOrderId   String?
+  openedById   String
+  reason       String
+  evidenceUrls String[]
+  status       DisputeStatus @default(OPEN)
+  resolution   String?
+  resolvedById String?
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  subOrder     SubOrder?     @relation(fields: [subOrderId], references: [id], onDelete: SetNull)
+  openedBy     User          @relation("DisputeOpener", fields: [openedById], references: [id])
+  resolvedBy   User?         @relation("DisputeResolver", fields: [resolvedById], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([resource, resourceId])
+  @@index([actorId, createdAt])
+}
