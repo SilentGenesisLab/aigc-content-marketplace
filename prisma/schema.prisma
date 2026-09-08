@@ -13,6 +13,11 @@ enum UserRole {
   ADMIN
 }
 
+enum SmsPurpose {
+  REGISTER
+  LOGIN
+}
+
 enum OrderMode {
   MULTI_DELIVERY
   CONTEST
@@ -306,4 +311,18 @@ model AuditLog {
 
   @@index([resource, resourceId])
   @@index([actorId, createdAt])
+}
+
+model SmsVerification {
+  id         String     @id @default(cuid())
+  phone      String
+  purpose    SmsPurpose
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
 }

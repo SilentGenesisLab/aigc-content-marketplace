@@ -79,6 +79,10 @@ textarea.input { min-height: 105px; resize: vertical; }
 .auth-art h1 { font-size: clamp(34px, 4vw, 56px); max-width: 650px; }
 .auth-panel { display: grid; place-items: center; padding: 32px; }
 .auth-box { width: min(430px, 100%); }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; margin: 22px 0 16px; border-radius: 9px; background: #f0f3f7; }
+.auth-tabs button { border: 0; border-radius: 7px; padding: 9px 12px; cursor: pointer; color: var(--muted); background: transparent; font-weight: 650; }
+.auth-tabs button.active { color: var(--ink); background: white; box-shadow: 0 1px 4px rgb(23 32 51 / 10%); }
+.sms-row { display: grid; grid-template-columns: minmax(0, 1fr) 122px; gap: 10px; }
 .notice { border-radius: 8px; padding: 12px 14px; font-size: 14px; background: #eef3ff; color: #2749ad; }
 .error { background: #fff0f1; color: #a42f3d; }
 .empty { text-align: center; padding: 55px 20px; color: var(--muted); }
