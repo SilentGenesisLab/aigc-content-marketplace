@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 const COOKIE = "aigc_session";
 const secret = () => new TextEncoder().encode(process.env.SESSION_SECRET || "local-development-secret-change-me");
+const secureCookie = () => process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://") ?? process.env.NODE_ENV === "production";
 
 export type SessionUser = { id: string; name: string; phone: string; role: "CLIENT" | "CREATOR" | "ADMIN" };
 
@@ -17,14 +18,14 @@ export async function createSession(user: SessionUser) {
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie(),
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
 }
 
 export async function clearSession() {
-  (await cookies()).set(COOKIE, "", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 0 });
+  (await cookies()).set(COOKIE, "", { httpOnly: true, sameSite: "lax", secure: secureCookie(), path: "/", maxAge: 0 });
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
