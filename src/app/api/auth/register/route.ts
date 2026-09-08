@@ -1,0 +1,23 @@
+import { hash } from "bcryptjs";
+import { UserRole } from "@prisma/client";
+import { createSession, ApiError } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { body, jsonError, required, audit } from "@/lib/api";
+import { rateLimit } from "@/lib/redis";
+
+export async function POST(request: Request) {
+  try {
+    const data = await body<{ phone?: string; password?: string; name?: string; role?: string }>(request);
+    const phone = required(data.phone, "手机号");
+    if (!/^1\d{10}$/.test(phone)) throw new ApiError("请输入正确的中国大陆手机号");
+    if (await rateLimit(`register:${phone}`, 5, 600)) throw new ApiError("注册尝试过于频繁，请稍后再试", 429);
+    const password = required(data.password, "密码");
+    if (password.length < 8) throw new ApiError("密码至少 8 位");
+    const role = data.role === "CREATOR" ? UserRole.CREATOR : UserRole.CLIENT;
+    const user = await prisma.user.create({ data: { phone, name: required(data.name, "姓名"), role, passwordHash: await hash(password, 12), creatorProfile: role === UserRole.CREATOR ? { create: {} } : undefined }, select: { id: true, name: true, phone: true, role: true } });
+    await createSession(user);
+    await audit(user.id, "USER_REGISTERED", "User", user.id);
+    return Response.json({ user }, { status: 201 });
+  } catch (error) { return jsonError(error); }
+}
+
