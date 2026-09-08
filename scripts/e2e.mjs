@@ -1,4 +1,6 @@
 const base = process.argv[2] || "http://localhost:3000";
+const demoPassword = process.env.DEMO_PASSWORD;
+if (!demoPassword) throw new Error("DEMO_PASSWORD is required");
 const sessions = {};
 const checks = [];
 
@@ -16,7 +18,7 @@ async function request(path, { session, method = "GET", body, form } = {}) {
 }
 
 for (const [session, phone] of [["client", "13800000001"], ["creator", "13800000002"], ["admin", "13800000003"]]) {
-  await request("/api/auth/login", { session, method: "POST", body: { phone, password: "Demo@123456" } });
+  await request("/api/auth/login", { session, method: "POST", body: { phone, password: demoPassword } });
 }
 checks.push("登录三类账户");
 
