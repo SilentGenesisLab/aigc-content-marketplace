@@ -1,69 +1,19 @@
-import Image from "next/image";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowRight, CalendarDays, UsersRound } from "lucide-react";
+import { getSessionUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { AppShell } from "@/components/app-shell";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+const statusText: Record<string,string>={OPEN:"报名中",SELECTING:"选人中",IN_PRODUCTION:"制作中",PENDING_ACCEPTANCE:"待验收",COMPLETED:"已完成"};
+const modeText: Record<string,string>={MULTI_DELIVERY:"多人独立交付",CONTEST:"竞稿择优"};
+export default async function Home() {
+  const user=await getSessionUser(); if(!user) redirect("/login");
+  const orders=await prisma.order.findMany({where:{status:{in:["OPEN","SELECTING","IN_PRODUCTION","PENDING_ACCEPTANCE","COMPLETED"]}},orderBy:[{publishedAt:"desc"},{updatedAt:"desc"}],take:30,include:{client:{select:{name:true,avatarColor:true}},_count:{select:{applications:true}}}});
+  const open=orders.filter(o=>o.status==="OPEN").length, creators=await prisma.creatorProfile.count({where:{available:true}});
+  return <AppShell user={user}><div className="content"><div className="row between wrap"><div><div className="eyebrow">ORDER HALL</div><h1>订单大厅</h1><p className="muted" style={{margin:0}}>查看清晰的制作要求，再决定是否投入创作。</p></div>{user.role!=="CREATOR"&&<Link className="button" href="/orders/new">发布新订单<ArrowRight size={16}/></Link>}</div>
+  <div className="grid grid-3" style={{marginTop:24}}><div className="card"><div className="muted">正在报名的订单</div><div className="metric">{open}</div></div><div className="card"><div className="muted">可接单创作者</div><div className="metric">{creators}</div></div><div className="card"><div className="muted">平台成交原则</div><div style={{fontWeight:700,marginTop:12}}>无虚假销量 · 验收后确权</div></div></div>
+  <div className="row between" style={{marginTop:30,marginBottom:14}}><h2>最新订单</h2><span className="muted" style={{fontSize:13}}>共 {orders.length} 条可见记录</span></div>
+  {orders.length?<div className="grid grid-3">{orders.map(order=><Link href={`/orders/${order.id}`} className="card order-card" key={order.id}><div className="row between"><span className={`chip ${order.status==="OPEN"?"green":"blue"}`}>{statusText[order.status]}</span><span className="muted" style={{fontSize:12}}>{order.code}</span></div><div><h3>{order.title}</h3><div className="description" style={{marginTop:7}}>{order.objective}</div></div><div className="row wrap"><span className="chip">{order.platform}</span><span className="chip">{order.style}</span><span className="chip orange">{modeText[order.mode]}</span></div><div className="foot row between"><span className="row muted" style={{fontSize:13}}><UsersRound size={15}/>{order._count.applications} 人报名</span><span className="row muted" style={{fontSize:13}}><CalendarDays size={15}/>{order.deadline.toLocaleDateString("zh-CN",{timeZone:"Asia/Shanghai"})}</span></div></Link>)}</div>:<div className="card empty">暂无公开订单。审核通过的真实订单会显示在这里。</div>}
+  </div></AppShell>;
 }
