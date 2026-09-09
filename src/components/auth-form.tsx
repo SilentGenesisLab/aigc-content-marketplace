@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowRight, Video } from "lucide-react";
+import { ArrowRight, CheckCircle2, Orbit, ShieldCheck, Video } from "lucide-react";
 import { api } from "@/lib/client";
+import { TechScene } from "@/components/tech-scene";
 
 type LoginMethod = "password" | "sms";
 
@@ -71,9 +72,21 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return <div className="auth-page">
     <section className="auth-art">
-      <div className="row"><span className="brand-mark"><Video size={19}/></span><strong>片场</strong></div>
-      <h1>让每一次创作，都有清晰的 Brief 和可信的交付。</h1>
-      <p style={{ color: "#aeb9ce", maxWidth: 600 }}>连接真实需求与真实创作者，从报名、中选、制作到验收，完整保留 AIGC 工具、素材授权和权利确认记录。</p>
+      <TechScene variant="auth" />
+      <div className="auth-art-content">
+        <div className="auth-brand"><span className="brand-mark"><Video size={19}/></span><span><strong>片场</strong><small>CREATIVE DELIVERY NETWORK</small></span></div>
+        <div className="auth-copy">
+          <div className="signal-pill"><span/>LIVE CREATIVE WORKSPACE</div>
+          <h1>让创意被看见，<br/>让交付可验证。</h1>
+          <p>从清晰 Brief 到最终确权，在同一个可信工作流中连接真实需求与专业创作者。</p>
+          <div className="auth-proof-grid">
+            <span><Orbit size={17}/>结构化协作</span>
+            <span><ShieldCheck size={17}/>全流程留痕</span>
+            <span><CheckCircle2 size={17}/>验收后确权</span>
+          </div>
+        </div>
+        <div className="auth-art-foot"><span>01</span><i/><span>CREATE · DELIVER · VERIFY</span></div>
+      </div>
     </section>
     <section className="auth-panel">
       <div className="auth-box">

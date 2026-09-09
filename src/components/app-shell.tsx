@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BriefcaseBusiness, ClipboardCheck, LayoutGrid, LogOut, ShieldCheck, UserRound, Video } from "lucide-react";
+import { BriefcaseBusiness, ChevronRight, ClipboardCheck, LayoutGrid, LogOut, Radio, ShieldCheck, UserRound, Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type User = { id: string; name: string; role: "CLIENT" | "CREATOR" | "ADMIN" };
@@ -18,7 +18,8 @@ export function AppShell({ user, children }: { user: User; children: React.React
   ];
   const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
   return <div className="shell">
-    <aside className="sidebar"><Link href="/" className="brand"><span className="brand-mark"><Video size={19}/></span><span>片场</span></Link><nav className="nav">{nav.map(([href,label,Icon])=><Link key={href} href={href} className={active(href)?"active":""}><Icon size={17}/>{label}</Link>)}</nav><div className="sidebar-foot"><div style={{fontWeight:700,color:"white"}}>{user.name}</div><div className="muted" style={{fontSize:12,marginTop:4}}>{roleName[user.role]}</div><button className="button secondary" style={{marginTop:14,width:"100%",background:"transparent",color:"#d5dbea",borderColor:"#344057"}} onClick={async()=>{await fetch("/api/auth/logout",{method:"POST"});router.push("/login");router.refresh();}}><LogOut size={15}/>退出登录</button></div></aside>
-    <main className="main"><div className="mobile-nav">{nav.map(([href,label])=><Link key={href} href={href}>{label}</Link>)}</div><header className="topbar"><div><strong>AIGC 内容创作与交付</strong></div><span className="chip blue">{roleName[user.role]}</span></header>{children}</main>
+    <a className="skip-link" href="#main-content">跳转到主要内容</a>
+    <aside className="sidebar"><Link href="/" className="brand"><span className="brand-mark"><Video size={19}/></span><span>片场<small>AIGC WORKSPACE</small></span></Link><div className="nav-label">工作空间</div><nav className="nav">{nav.map(([href,label,Icon])=><Link key={href} href={href} className={active(href)?"active":""}><Icon size={17}/><span>{label}</span>{active(href)&&<ChevronRight className="nav-arrow" size={15}/>}</Link>)}</nav><div className="sidebar-foot"><div className="user-row"><span className="user-avatar">{user.name.slice(0,1)}</span><span><strong>{user.name}</strong><small>{roleName[user.role]}</small></span></div><button className="sidebar-logout" aria-label="退出登录" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST"});router.push("/login");router.refresh();}}><LogOut size={16}/><span>退出登录</span></button></div></aside>
+    <main className="main" id="main-content"><div className="mobile-nav">{nav.map(([href,label,Icon])=><Link className={active(href)?"active":""} key={href} href={href}><Icon size={16}/>{label}</Link>)}</div><header className="topbar"><div className="workspace-title"><span className="status-orb"><Radio size={14}/></span><span><strong>AIGC 内容创作与交付</strong><small>创作履约工作台</small></span></div><span className="role-badge">{roleName[user.role]}</span></header>{children}</main>
   </div>;
 }

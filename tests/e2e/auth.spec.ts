@@ -99,7 +99,7 @@ test.describe.serial("认证", () => {
     const expiredPhone = phone(testInfo.project.name, 4);
     await request.post("/api/auth/sms/send", { data: { phone: expiredPhone, purpose: "REGISTER" } });
     const expiredCode = await testCode(request, expiredPhone, "REGISTER");
-    await new Promise((resolve) => setTimeout(resolve, 10_200));
+    await new Promise((resolve) => setTimeout(resolve, 12_500));
     const expired = await request.post("/api/auth/register", { data: { name: "过期验证码", role: "CLIENT", phone: expiredPhone, password: "register-password", smsCode: expiredCode } });
     expect(expired.status()).toBe(400);
   });

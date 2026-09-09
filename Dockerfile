@@ -3,7 +3,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
@@ -21,4 +21,3 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0
 CMD ["node", "server.js"]
-
