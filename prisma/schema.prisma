@@ -13,6 +13,50 @@ enum UserRole {
   ADMIN
 }
 
+enum OrganizationType {
+  CLIENT
+  CREATOR
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  PROJECT_MANAGER
+  REVIEWER
+  FINANCE
+  MEMBER
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  FUNDED
+  RELEASED
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+}
+
+enum LedgerEntryType {
+  FUND
+  HOLD
+  RELEASE
+  PLATFORM_FEE
+  REFUND
+  SETTLEMENT
+}
+
+enum CommentStatus {
+  OPEN
+  RESOLVED
+}
+
 enum SmsPurpose {
   REGISTER
   LOGIN
@@ -68,39 +112,116 @@ enum DisputeStatus {
 }
 
 model User {
-  id                String          @id @default(cuid())
-  phone             String          @unique
-  passwordHash      String
-  name              String
-  role              UserRole
-  avatarColor       String          @default("#3157D5")
-  creatorProfile    CreatorProfile?
-  portfolios        Portfolio[]
-  orders            Order[]         @relation("OrderClient")
-  applications      Application[]   @relation("ApplicationCreator")
-  subOrders         SubOrder[]      @relation("SubOrderCreator")
-  reviewsGiven      Review[]        @relation("ReviewAuthor")
-  reviewsReceived   Review[]        @relation("ReviewTarget")
-  revisionRequests  RevisionRequest[]
-  disputesOpened    Dispute[]       @relation("DisputeOpener")
-  disputesResolved  Dispute[]       @relation("DisputeResolver")
-  auditLogs         AuditLog[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                      String               @id @default(cuid())
+  phone                   String               @unique
+  passwordHash            String
+  name                    String
+  role                    UserRole
+  avatarColor             String               @default("#3157D5")
+  creatorProfile          CreatorProfile?
+  portfolios              Portfolio[]
+  orders                  Order[]              @relation("OrderClient")
+  applications            Application[]        @relation("ApplicationCreator")
+  subOrders               SubOrder[]           @relation("SubOrderCreator")
+  reviewsGiven            Review[]             @relation("ReviewAuthor")
+  reviewsReceived         Review[]             @relation("ReviewTarget")
+  revisionRequests        RevisionRequest[]
+  disputesOpened          Dispute[]            @relation("DisputeOpener")
+  disputesResolved        Dispute[]            @relation("DisputeResolver")
+  auditLogs               AuditLog[]
+  roleAssignments         UserRoleAssignment[]
+  organizationMemberships OrganizationMember[]
+  organizationsCreated    Organization[]       @relation("OrganizationCreator")
+  notifications           Notification[]
+  messages                Message[]
+  mediaUploads            MediaAsset[]         @relation("MediaUploader")
+  timecodeComments        TimecodeComment[]    @relation("TimecodeCommentAuthor")
+  delegationsGranted      AdminDelegation[]    @relation("DelegationGranter")
+  delegationsReceived     AdminDelegation[]    @relation("DelegationAdmin")
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  role      UserRole
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, role])
+  @@index([role])
+}
+
+model Organization {
+  id           String               @id @default(cuid())
+  name         String
+  type         OrganizationType
+  description  String               @default("")
+  creatorId    String
+  creator      User                 @relation("OrganizationCreator", fields: [creatorId], references: [id])
+  members      OrganizationMember[]
+  clientOrders Order[]              @relation("OrderClientOrganization")
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([type, createdAt])
+}
+
+model OrganizationMember {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrganizationRole @default(MEMBER)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId, role])
 }
 
 model CreatorProfile {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  bio        String   @default("")
-  skills     String[]
-  platforms  String[]
-  styles     String[]
-  available  Boolean  @default(true)
-  verified   Boolean  @default(false)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                 String                  @id @default(cuid())
+  userId             String                  @unique
+  bio                String                  @default("")
+  skills             String[]
+  platforms          String[]
+  styles             String[]
+  available          Boolean                 @default(true)
+  verified           Boolean                 @default(false)
+  verificationStatus VerificationStatus      @default(UNVERIFIED)
+  servicePackages    CreatorServicePackage[]
+  availability       Availability[]
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+}
+
+model CreatorServicePackage {
+  id           String         @id @default(cuid())
+  profileId    String
+  title        String
+  description  String
+  deliveryDays Int
+  revisions    Int            @default(1)
+  price        Decimal        @db.Decimal(12, 2)
+  active       Boolean        @default(true)
+  profile      CreatorProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Availability {
+  id        String         @id @default(cuid())
+  profileId String
+  startsAt  DateTime
+  endsAt    DateTime
+  note      String         @default("")
+  profile   CreatorProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, startsAt, endsAt])
 }
 
 model Portfolio {
@@ -119,38 +240,58 @@ model Portfolio {
 }
 
 model Order {
-  id                 String          @id @default(cuid())
-  code               String          @unique
-  clientId           String
-  title              String
-  objective          String
-  topic              String
-  quantity           Int
-  duration           String
-  platform           String
-  aspectRatio        String
-  audience           String
-  style              String
-  referenceUrls      String[]
-  forbiddenElements  String          @default("")
-  deadline           DateTime
-  acceptanceCriteria String
-  mode               OrderMode
-  slots              Int             @default(1)
-  sampleRequired     Boolean         @default(false)
-  status             OrderStatus     @default(DRAFT)
-  reviewNote         String?
-  publishedAt        DateTime?
-  client             User            @relation("OrderClient", fields: [clientId], references: [id])
-  applications       Application[]
-  snapshots          BriefSnapshot[]
-  subOrders          SubOrder[]
-  disputes           Dispute[]
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  id                   String              @id @default(cuid())
+  code                 String              @unique
+  clientId             String
+  clientOrganizationId String?
+  title                String
+  objective            String
+  topic                String
+  quantity             Int
+  duration             String
+  platform             String
+  aspectRatio          String
+  audience             String
+  style                String
+  referenceUrls        String[]
+  forbiddenElements    String              @default("")
+  deadline             DateTime
+  acceptanceCriteria   String
+  mode                 OrderMode
+  slots                Int                 @default(1)
+  sampleRequired       Boolean             @default(false)
+  budgetAmount         Decimal?            @db.Decimal(12, 2)
+  currency             String              @default("CNY")
+  maxRevisions         Int                 @default(1)
+  status               OrderStatus         @default(DRAFT)
+  reviewNote           String?
+  publishedAt          DateTime?
+  client               User                @relation("OrderClient", fields: [clientId], references: [id])
+  clientOrganization   Organization?       @relation("OrderClientOrganization", fields: [clientOrganizationId], references: [id])
+  applications         Application[]
+  snapshots            BriefSnapshot[]
+  subOrders            SubOrder[]
+  disputes             Dispute[]
+  collaborators        OrderCollaborator[]
+  conversations        Conversation[]
+  delegations          AdminDelegation[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@index([status, deadline])
   @@index([clientId, createdAt])
+}
+
+model OrderCollaborator {
+  id        String           @id @default(cuid())
+  orderId   String
+  userId    String
+  role      OrganizationRole
+  order     Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@unique([orderId, userId, role])
+  @@index([userId])
 }
 
 model Application {
@@ -159,6 +300,8 @@ model Application {
   creatorId    String
   pitch        String
   portfolioIds String[]
+  quoteAmount  Decimal?          @db.Decimal(12, 2)
+  promisedDays Int?
   status       ApplicationStatus @default(APPLIED)
   order        Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
   creator      User              @relation("ApplicationCreator", fields: [creatorId], references: [id])
@@ -171,59 +314,100 @@ model Application {
 }
 
 model BriefSnapshot {
-  id         String     @id @default(cuid())
-  orderId    String
-  version    Int
-  content    Json
-  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  subOrders  SubOrder[]
-  createdAt  DateTime   @default(now())
+  id        String     @id @default(cuid())
+  orderId   String
+  version   Int
+  content   Json
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  subOrders SubOrder[]
+  createdAt DateTime   @default(now())
 
   @@unique([orderId, version])
 }
 
 model SubOrder {
-  id                    String         @id @default(cuid())
-  code                  String         @unique
-  orderId               String
-  applicationId         String         @unique
-  creatorId             String
-  briefSnapshotId       String
-  status                SubOrderStatus @default(PENDING_CONFIRMATION)
-  creatorConfirmedAt    DateTime?
-  objection             String?
-  objectionResolvedAt   DateTime?
-  order                 Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  application           Application    @relation(fields: [applicationId], references: [id])
-  creator               User           @relation("SubOrderCreator", fields: [creatorId], references: [id])
-  briefSnapshot         BriefSnapshot  @relation(fields: [briefSnapshotId], references: [id])
-  deliveries            DeliveryVersion[]
-  reviews               Review[]
-  rightsReceipt         RightsReceipt?
-  disputes              Dispute[]
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  id                  String            @id @default(cuid())
+  code                String            @unique
+  orderId             String
+  applicationId       String            @unique
+  creatorId           String
+  briefSnapshotId     String
+  status              SubOrderStatus    @default(PENDING_CONFIRMATION)
+  creatorConfirmedAt  DateTime?
+  objection           String?
+  objectionResolvedAt DateTime?
+  grossAmount         Decimal?          @db.Decimal(12, 2)
+  feeRate             Decimal?          @db.Decimal(5, 4)
+  platformFee         Decimal?          @db.Decimal(12, 2)
+  creatorNetAmount    Decimal?          @db.Decimal(12, 2)
+  order               Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  application         Application       @relation(fields: [applicationId], references: [id])
+  creator             User              @relation("SubOrderCreator", fields: [creatorId], references: [id])
+  briefSnapshot       BriefSnapshot     @relation(fields: [briefSnapshotId], references: [id])
+  deliveries          DeliveryVersion[]
+  reviews             Review[]
+  rightsReceipt       RightsReceipt?
+  disputes            Dispute[]
+  payment             PaymentIntent?
+  conversations       Conversation[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([creatorId, status])
   @@index([orderId, status])
 }
 
 model DeliveryVersion {
-  id           String                @id @default(cuid())
-  subOrderId   String
-  version      Int
-  title        String
-  fileUrl      String
-  previewUrl   String?
-  note         String                @default("")
-  status       DeliveryStatus        @default(SUBMITTED)
-  subOrder     SubOrder              @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
-  compliance   ComplianceDeclaration?
-  revisions    RevisionRequest[]
-  rightsFor    RightsReceipt[]        @relation("FinalDelivery")
-  createdAt    DateTime              @default(now())
+  id          String                 @id @default(cuid())
+  subOrderId  String
+  version     Int
+  title       String
+  fileUrl     String
+  previewUrl  String?
+  note        String                 @default("")
+  status      DeliveryStatus         @default(SUBMITTED)
+  subOrder    SubOrder               @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  compliance  ComplianceDeclaration?
+  revisions   RevisionRequest[]
+  rightsFor   RightsReceipt[]        @relation("FinalDelivery")
+  comments    TimecodeComment[]
+  mediaAssets MediaAsset[]
+  createdAt   DateTime               @default(now())
 
   @@unique([subOrderId, version])
+}
+
+model MediaAsset {
+  id         String           @id @default(cuid())
+  deliveryId String?
+  uploaderId String
+  name       String
+  url        String
+  mimeType   String
+  size       BigInt?
+  checksum   String?
+  aigc       Boolean          @default(true)
+  delivery   DeliveryVersion? @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  uploader   User             @relation("MediaUploader", fields: [uploaderId], references: [id])
+  createdAt  DateTime         @default(now())
+
+  @@index([deliveryId, createdAt])
+}
+
+model TimecodeComment {
+  id         String          @id @default(cuid())
+  deliveryId String
+  authorId   String
+  timecodeMs Int
+  body       String
+  status     CommentStatus   @default(OPEN)
+  resolvedAt DateTime?
+  delivery   DeliveryVersion @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  author     User            @relation("TimecodeCommentAuthor", fields: [authorId], references: [id])
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([deliveryId, timecodeMs])
 }
 
 model RevisionRequest {
@@ -311,6 +495,113 @@ model AuditLog {
 
   @@index([resource, resourceId])
   @@index([actorId, createdAt])
+}
+
+model PaymentIntent {
+  id               String        @id @default(cuid())
+  subOrderId       String        @unique
+  provider         String        @default("SANDBOX")
+  providerRef      String?       @unique
+  status           PaymentStatus @default(PENDING)
+  grossAmount      Decimal       @db.Decimal(12, 2)
+  platformFee      Decimal       @db.Decimal(12, 2)
+  creatorNetAmount Decimal       @db.Decimal(12, 2)
+  currency         String        @default("CNY")
+  fundedAt         DateTime?
+  releasedAt       DateTime?
+  refundedAt       DateTime?
+  subOrder         SubOrder      @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  ledgerEntries    LedgerEntry[]
+  settlements      Settlement[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model LedgerEntry {
+  id              String          @id @default(cuid())
+  paymentIntentId String
+  type            LedgerEntryType
+  amount          Decimal         @db.Decimal(12, 2)
+  currency        String          @default("CNY")
+  note            String          @default("")
+  paymentIntent   PaymentIntent   @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+
+  @@index([paymentIntentId, createdAt])
+}
+
+model Settlement {
+  id              String        @id @default(cuid())
+  paymentIntentId String
+  amount          Decimal       @db.Decimal(12, 2)
+  status          PaymentStatus @default(PENDING)
+  paymentIntent   PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model FeeRule {
+  id          String   @id @default(cuid())
+  name        String
+  rate        Decimal  @db.Decimal(5, 4)
+  active      Boolean  @default(true)
+  effectiveAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model Conversation {
+  id         String    @id @default(cuid())
+  orderId    String?
+  subOrderId String?
+  title      String
+  order      Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  subOrder   SubOrder? @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  messages   Message[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  authorId       String
+  body           String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author         User         @relation(fields: [authorId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  href      String?
+  readAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+model AdminDelegation {
+  id        String    @id @default(cuid())
+  orderId   String
+  granterId String
+  adminId   String
+  actions   String[]
+  reason    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  granter   User      @relation("DelegationGranter", fields: [granterId], references: [id])
+  admin     User      @relation("DelegationAdmin", fields: [adminId], references: [id])
+  createdAt DateTime  @default(now())
+
+  @@index([adminId, expiresAt])
 }
 
 model SmsVerification {

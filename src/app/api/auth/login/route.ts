@@ -13,6 +13,6 @@ export async function POST(request: Request) {
     const user = await prisma.user.findUnique({ where: { phone }, select: { id: true, name: true, phone: true, role: true, passwordHash: true } });
     if (!user || !(await compare(required(data.password, "密码"), user.passwordHash))) throw new ApiError("手机号或密码错误", 401);
     await createSession(user);
-    return Response.json({ user: { id: user.id, name: user.name, phone: user.phone, role: user.role } });
+    return Response.json({ user: await import("@/lib/auth").then(({ getSessionUser }) => getSessionUser()) });
   } catch (error) { return jsonError(error); }
 }

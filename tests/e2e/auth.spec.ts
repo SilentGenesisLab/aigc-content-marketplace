@@ -47,6 +47,16 @@ test.describe.serial("认证", () => {
     await expect(page.getByRole("heading", { name: "我的订单" })).toBeVisible();
   });
 
+  test("同一账号可开通并切换发布者与视频制作者身份", async ({ page }) => {
+    await passwordLogin(page, "/dashboard");
+    await page.getByLabel("当前身份").selectOption("CREATOR");
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: /今天继续把创意交付好/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: "创作者档案" })).toBeVisible();
+    await page.getByLabel("当前身份").selectOption("CLIENT");
+    await expect(page.getByRole("heading", { name: /订单进度一目了然/ })).toBeVisible();
+  });
+
   test("注册页面发送验证码并创建发单者", async ({ page, request }, testInfo) => {
     const target = phone(testInfo.project.name, 1);
     await page.goto("/register");

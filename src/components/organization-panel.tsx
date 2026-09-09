@@ -1,0 +1,7 @@
+"use client";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, UsersRound } from "lucide-react";
+import { api } from "@/lib/client";
+
+export function OrganizationPanel({type}:{type:"CLIENT"|"CREATOR"}){const router=useRouter();const[open,setOpen]=useState(false);const[error,setError]=useState("");async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);try{await api("/api/organizations",{method:"POST",body:JSON.stringify({name:form.get("name"),description:form.get("description"),type})});setOpen(false);router.refresh()}catch(cause){setError(cause instanceof Error?cause.message:"创建失败")}}return <div>{open?<form className="card form" onSubmit={submit}>{error&&<div className="notice error">{error}</div>}<div className="field"><label>团队名称</label><input className="input" name="name" required placeholder="品牌团队或视频工作室名称"/></div><div className="field"><label>团队说明</label><textarea className="input" name="description" placeholder="团队职责、擅长方向或协作约定"/></div><div className="row"><button className="button">创建团队</button><button type="button" className="button secondary" onClick={()=>setOpen(false)}>取消</button></div></form>:<button className="button" onClick={()=>setOpen(true)}><Plus size={16}/>新建{type==="CLIENT"?"发布":"制作"}团队</button>}<p className="muted" style={{fontSize:13,marginTop:12}}><UsersRound size={14} style={{verticalAlign:"middle"}}/> 个人账号已自动拥有一个单人工作空间。</p></div>}

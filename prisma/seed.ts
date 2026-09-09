@@ -14,6 +14,12 @@ async function main() {
   ];
   for (const item of users) {
     const user = await prisma.user.upsert({ where: { phone: item.phone }, update: { passwordHash }, create: { ...item, passwordHash } });
+    await prisma.userRoleAssignment.upsert({ where: { userId_role: { userId: user.id, role: item.role } }, update: {}, create: { userId: user.id, role: item.role } });
+    if (item.role !== UserRole.ADMIN) {
+      const type = item.role === UserRole.CREATOR ? "CREATOR" : "CLIENT";
+      const existing = await prisma.organization.findFirst({ where: { creatorId: user.id, type } });
+      if (!existing) await prisma.organization.create({ data: { name: `${user.name}的工作空间`, type, creatorId: user.id, members: { create: { userId: user.id, role: "OWNER" } } } });
+    }
     if (item.role === UserRole.CREATOR) {
       await prisma.creatorProfile.upsert({
         where: { userId: user.id },
@@ -22,6 +28,7 @@ async function main() {
       });
     }
   }
+  if (!await prisma.feeRule.findFirst({ where: { active: true } })) await prisma.feeRule.create({ data: { name: "平台标准服务费", rate: "0.02" } });
 }
 
 main().finally(() => prisma.$disconnect());

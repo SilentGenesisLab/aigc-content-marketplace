@@ -1,0 +1,21 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { AlertCircle, ArrowRight, Banknote, CheckCircle2, Clock3, FileVideo, ShieldCheck, UsersRound } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { getSessionUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export default async function DashboardPage(){
+  const user=await getSessionUser();if(!user)redirect("/login");
+  if(user.role==="ADMIN"){
+    const[reviews,disputes,users,volume]=await Promise.all([prisma.order.count({where:{status:"PENDING_REVIEW"}}),prisma.dispute.count({where:{status:{in:["OPEN","REVIEWING"]}}}),prisma.user.count(),prisma.paymentIntent.aggregate({_sum:{grossAmount:true},where:{status:{in:["FUNDED","RELEASED"]}}})]);
+    return <AppShell user={user}><div className="content"><div className="eyebrow">PLATFORM CONTROL</div><h1>平台运营工作台</h1><p className="muted">审核、交易、争议与风险治理集中处理。</p><div className="grid grid-4 metric-grid">{([...[ ["待审核订单",reviews,ShieldCheck],["待处理争议",disputes,AlertCircle],["平台注册用户",users,UsersRound],["沙箱交易额",`¥${Number(volume._sum.grossAmount||0).toFixed(2)}`,Banknote] ]] as [string,string|number,LucideIcon][]).map(([label,value,Icon])=><div className="card metric-card" key={label}><span className="metric-icon"><Icon size={18}/></span><div><div className="muted">{label}</div><div className="metric">{String(value)}</div></div></div>)}</div><Link href="/admin" className="button" style={{marginTop:22}}>进入平台管理<ArrowRight size={16}/></Link></div></AppShell>;
+  }
+  if(user.role==="CREATOR"){
+    const[applications,briefs,production,pendingIncome]=await Promise.all([prisma.application.count({where:{creatorId:user.id,status:{in:["APPLIED","SHORTLISTED"]}}}),prisma.subOrder.count({where:{creatorId:user.id,status:"PENDING_CONFIRMATION"}}),prisma.subOrder.count({where:{creatorId:user.id,status:{in:["IN_PRODUCTION","NEEDS_CHANGES","PENDING_ACCEPTANCE"]}}}),prisma.paymentIntent.aggregate({_sum:{creatorNetAmount:true},where:{subOrder:{creatorId:user.id},status:"FUNDED"}})]);
+    return <AppShell user={user}><div className="content"><div className="eyebrow">CREATOR DESK</div><h1>{user.name}，今天继续把创意交付好</h1><p className="muted">报名、Brief、制作、审阅和结算状态都来自真实业务记录。</p><div className="grid grid-4 metric-grid">{([...[ ["进行中报名",applications,UsersRound],["待确认 Brief",briefs,FileVideo],["制作与审阅",production,Clock3],["待验收结算",`¥${Number(pendingIncome._sum.creatorNetAmount||0).toFixed(2)}`,Banknote] ]] as [string,string|number,LucideIcon][]).map(([label,value,Icon])=><div className="card metric-card" key={label}><span className="metric-icon"><Icon size={18}/></span><div><div className="muted">{label}</div><div className="metric">{String(value)}</div></div></div>)}</div><div className="row" style={{marginTop:22}}><Link href="/" className="button">寻找订单<ArrowRight size={16}/></Link><Link href="/work" className="button secondary">进入制作台</Link></div></div></AppShell>;
+  }
+  const[reviewing,selecting,payments,acceptance]=await Promise.all([prisma.order.count({where:{clientId:user.id,status:"PENDING_REVIEW"}}),prisma.order.count({where:{clientId:user.id,status:{in:["OPEN","SELECTING"]}}}),prisma.subOrder.count({where:{order:{clientId:user.id},creatorConfirmedAt:{not:null},payment:null}}),prisma.subOrder.count({where:{order:{clientId:user.id},status:"PENDING_ACCEPTANCE"}})]);
+  return <AppShell user={user}><div className="content"><div className="eyebrow">PUBLISHER DESK</div><h1>{user.name}，订单进度一目了然</h1><p className="muted">从审核、选人、托管到验收，优先处理阻塞交付的事项。</p><div className="grid grid-4 metric-grid">{([...[ ["平台审核中",reviewing,ShieldCheck],["报名与选人",selecting,UsersRound],["待沙箱托管",payments,Banknote],["待最终验收",acceptance,CheckCircle2] ]] as [string,string|number,LucideIcon][]).map(([label,value,Icon])=><div className="card metric-card" key={label}><span className="metric-icon"><Icon size={18}/></span><div><div className="muted">{label}</div><div className="metric">{String(value)}</div></div></div>)}</div><div className="row" style={{marginTop:22}}><Link href="/orders/new" className="button">发布订单<ArrowRight size={16}/></Link><Link href="/work" className="button secondary">查看履约</Link></div></div></AppShell>;
+}

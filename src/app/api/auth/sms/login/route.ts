@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     await consumeSmsCode(phone, SmsPurpose.LOGIN, data.smsCode);
     await createSession(user);
     await audit(user.id, "USER_SMS_LOGIN", "User", user.id);
-    return Response.json({ user });
+    return Response.json({ user: await import("@/lib/auth").then(({ getSessionUser }) => getSessionUser()) });
   } catch (error) {
     return jsonError(error);
   }

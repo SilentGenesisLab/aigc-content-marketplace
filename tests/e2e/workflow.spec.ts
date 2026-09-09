@@ -56,7 +56,7 @@ test("发单、审核、报名、中选、Brief、两版交付、验收和评价
 
     const creator = await login(browser, "13800000002", mobile); contexts.push(creator.context);
     await creator.page.goto(orderUrl);
-    await creator.page.getByRole("button", { name: "报名这个订单" }).click();
+    await creator.page.getByRole("button", { name: "报名并报价" }).click();
     await creator.page.getByPlaceholder("说明你的相关经验、制作思路和可投入时间").fill("具备相关产品短视频经验，可按时完成");
     await creator.page.getByRole("button", { name: "确认报名" }).click();
     await expect(creator.page.getByText("你已报名该订单")).toBeVisible();
@@ -68,7 +68,15 @@ test("发单、审核、报名、中选、Brief、两版交付、验收和评价
 
     await creator.page.goto("/work");
     const creatorWork = workCard(creator.page, title);
-    await creatorWork.getByRole("button", { name: "确认 Brief 并开始" }).click();
+    await creatorWork.getByRole("button", { name: "确认 Brief", exact: true }).click();
+    await expect(creatorWork.getByText(/等待发布者完成沙箱托管/)).toBeVisible();
+
+    await client.page.goto("/work");
+    const clientWork = workCard(client.page, title);
+    await clientWork.getByRole("button", { name: "沙箱托管并开始制作" }).click();
+    await expect(clientWork.getByText("制作中", { exact: true })).toBeVisible();
+
+    await creator.page.goto("/work");
     await expect(creatorWork.getByText("制作中", { exact: true })).toBeVisible();
     await creatorWork.getByRole("button", { name: "提交交付版本" }).click();
     await creatorWork.getByPlaceholder("版本名称").fill("初版交付");
@@ -84,7 +92,16 @@ test("发单、审核、报名、中选、Brief、两版交付、验收和评价
     await expect(creatorWork.getByText("待验收", { exact: true })).toBeVisible();
 
     await client.page.goto("/work");
-    const clientWork = workCard(client.page, title);
+    await clientWork.getByPlaceholder("秒数").fill("12");
+    await clientWork.getByPlaceholder("输入该时间点的修改意见").fill("转场节奏需要加快");
+    await clientWork.getByRole("button", { name: "添加批注" }).click();
+    await expect(clientWork.getByText("转场节奏需要加快")).toBeVisible();
+
+    await creator.page.goto("/work");
+    await creatorWork.getByRole("button", { name: "标记解决" }).click();
+    await expect(creatorWork.getByText("已解决", { exact: true })).toBeVisible();
+
+    await client.page.goto("/work");
     await clientWork.getByRole("button", { name: "退回修改" }).click();
     await clientWork.getByPlaceholder("不符合的验收条款").fill("画面节奏需符合验收条款");
     await clientWork.getByPlaceholder("验证证据或时间点").fill("第 12 秒转场偏慢");

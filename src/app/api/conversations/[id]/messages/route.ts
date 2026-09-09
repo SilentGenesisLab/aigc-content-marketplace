@@ -1,0 +1,5 @@
+import { ApiError, requireUser } from "@/lib/auth";
+import { audit, body, jsonError, required } from "@/lib/api";
+import { prisma } from "@/lib/prisma";
+import { orderPermission } from "@/lib/permissions";
+export async function POST(request:Request,context:{params:Promise<{id:string}>}){try{const user=await requireUser();const{id}=await context.params;const conversation=await prisma.conversation.findUnique({where:{id},include:{order:true,subOrder:true}});if(!conversation)throw new ApiError("会话不存在",404);const permission=conversation.orderId?await orderPermission(conversation.orderId,user.id):null;const allowed=user.role==="ADMIN"||permission?.view||conversation.subOrder?.creatorId===user.id;if(!allowed)throw new ApiError("没有访问该会话的权限",403);const data=await body<{body?:string}>(request);const message=await prisma.message.create({data:{conversationId:id,authorId:user.id,body:required(data.body,"消息内容")}});await audit(user.id,"MESSAGE_SENT","Conversation",id,{messageId:message.id});return Response.json({message},{status:201});}catch(error){return jsonError(error)}}

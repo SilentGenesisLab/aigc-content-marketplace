@@ -2,6 +2,7 @@ import { OrderStatus, UserRole } from "@prisma/client";
 import { ApiError, requireUser } from "@/lib/auth";
 import { audit, body, jsonError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { orderPermission } from "@/lib/permissions";
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -38,7 +39,8 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     });
     if (!order) throw new ApiError("订单不存在", 404);
     const publicStatuses: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.SELECTING, OrderStatus.IN_PRODUCTION, OrderStatus.PENDING_ACCEPTANCE, OrderStatus.COMPLETED];
-    if (!publicStatuses.includes(order.status) && order.clientId !== user.id && user.role !== UserRole.ADMIN) throw new ApiError("没有查看该订单的权限", 403);
+    const permission=await orderPermission(id,user.id);
+    if (!publicStatuses.includes(order.status) && !permission?.view && user.role !== UserRole.ADMIN) throw new ApiError("没有查看该订单的权限", 403);
     return Response.json({ order });
   } catch (error) { return jsonError(error); }
 }
@@ -49,13 +51,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { id } = await context.params;
     const existing = await prisma.order.findUnique({ where: { id } });
     if (!existing) throw new ApiError("订单不存在", 404);
-    if (existing.clientId !== user.id && user.role !== UserRole.ADMIN) throw new ApiError("没有修改该订单的权限", 403);
     const data = await body<{ action?: string; reviewNote?: string }>(request);
+    const permission=await orderPermission(id,user.id);
+    const adminReview=user.role===UserRole.ADMIN&&(data.action==="approve"||data.action==="reject");
+    if (!adminReview&&!permission?.manage) throw new ApiError("没有修改该订单的权限", 403);
     let status: OrderStatus;
-    if (data.action === "submit" && existing.status === OrderStatus.DRAFT) status = OrderStatus.PENDING_REVIEW;
+    if (data.action === "submit" && user.role !== UserRole.ADMIN && existing.status === OrderStatus.DRAFT) status = OrderStatus.PENDING_REVIEW;
     else if (data.action === "approve" && user.role === UserRole.ADMIN && existing.status === OrderStatus.PENDING_REVIEW) status = OrderStatus.OPEN;
     else if (data.action === "reject" && user.role === UserRole.ADMIN && existing.status === OrderStatus.PENDING_REVIEW) status = OrderStatus.DRAFT;
-    else if (data.action === "cancel" && (existing.status === OrderStatus.DRAFT || existing.status === OrderStatus.PENDING_REVIEW || existing.status === OrderStatus.OPEN)) status = OrderStatus.CANCELLED;
+    else if (data.action === "cancel" && user.role !== UserRole.ADMIN && (existing.status === OrderStatus.DRAFT || existing.status === OrderStatus.PENDING_REVIEW || existing.status === OrderStatus.OPEN)) status = OrderStatus.CANCELLED;
     else throw new ApiError("当前状态不允许该操作");
     const order = await prisma.order.update({ where: { id }, data: { status, reviewNote: data.reviewNote, publishedAt: status === OrderStatus.OPEN ? new Date() : existing.publishedAt } });
     await audit(user.id, `ORDER_${data.action?.toUpperCase()}`, "Order", id);

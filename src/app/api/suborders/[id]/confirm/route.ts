@@ -15,7 +15,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const confirmed = data.confirmed === true;
     if (confirmed && item.objection && !item.objectionResolvedAt) throw new ApiError("异议尚未由发单者处理，不能确认 Brief");
     if (!confirmed && !data.objection?.trim()) throw new ApiError("请填写需要协商的内容");
-    const subOrder = await prisma.subOrder.update({ where: { id }, data: confirmed ? { status: SubOrderStatus.IN_PRODUCTION, creatorConfirmedAt: new Date(), objection: null } : { objection: data.objection?.trim() } });
+    const subOrder = await prisma.subOrder.update({ where: { id }, data: confirmed ? { creatorConfirmedAt: new Date(), objection: null } : { objection: data.objection?.trim() } });
     await audit(user.id, confirmed ? "BRIEF_CONFIRMED" : "BRIEF_OBJECTED", "SubOrder", id);
     return Response.json({ subOrder });
   } catch (error) { return jsonError(error); }

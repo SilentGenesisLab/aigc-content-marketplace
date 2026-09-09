@@ -14,10 +14,16 @@ export async function POST(request: Request) {
     if (password.length < 8) throw new ApiError("密码至少 8 位");
     const role = data.role === "CREATOR" ? UserRole.CREATOR : UserRole.CLIENT;
     const passwordHash = await hash(password, 12);
-    const user = await consumeSmsCode(phone, SmsPurpose.REGISTER, data.smsCode, (tx) => tx.user.create({
-      data: { phone, name: required(data.name, "姓名"), role, passwordHash, creatorProfile: role === UserRole.CREATOR ? { create: {} } : undefined },
-      select: { id: true, name: true, phone: true, role: true },
-    }));
+    const name = required(data.name, "姓名");
+    const user = await consumeSmsCode(phone, SmsPurpose.REGISTER, data.smsCode, async (tx) => {
+      const created = await tx.user.create({
+        data: { phone, name, role, passwordHash, roleAssignments: { create: { role } }, creatorProfile: role === UserRole.CREATOR ? { create: {} } : undefined },
+        select: { id: true, name: true, phone: true, role: true },
+      });
+      const organization = await tx.organization.create({ data: { name: `${name}的工作空间`, type: role === UserRole.CREATOR ? "CREATOR" : "CLIENT", creatorId: created.id } });
+      await tx.organizationMember.create({ data: { organizationId: organization.id, userId: created.id, role: "OWNER" } });
+      return created;
+    });
     await createSession(user);
     await audit(user.id, "USER_REGISTERED", "User", user.id);
     return Response.json({ user }, { status: 201 });

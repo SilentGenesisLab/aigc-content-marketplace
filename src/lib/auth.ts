@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import { UserRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
@@ -6,10 +7,13 @@ const COOKIE = "aigc_session";
 const secret = () => new TextEncoder().encode(process.env.SESSION_SECRET || "local-development-secret-change-me");
 const secureCookie = () => process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://") ?? process.env.NODE_ENV === "production";
 
-export type SessionUser = { id: string; name: string; phone: string; role: "CLIENT" | "CREATOR" | "ADMIN" };
+export type SessionUser = { id: string; name: string; phone: string; role: UserRole; roles: UserRole[] };
 
-export async function createSession(user: SessionUser) {
-  const token = await new SignJWT({ name: user.name, phone: user.phone, role: user.role })
+export async function createSession(user: Pick<SessionUser, "id" | "name" | "phone" | "role">) {
+  const assignments = await prisma.userRoleAssignment.findMany({ where: { userId: user.id }, select: { role: true } });
+  const roles = assignments.length ? assignments.map((item) => item.role) : [user.role];
+  const activeRole = roles.includes(user.role) ? user.role : roles[0];
+  const token = await new SignJWT({ name: user.name, phone: user.phone, role: activeRole })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
@@ -34,8 +38,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, secret());
     if (!payload.sub) return null;
-    const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, name: true, phone: true, role: true } });
-    return user as SessionUser | null;
+    const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, name: true, phone: true, role: true, roleAssignments: { select: { role: true } } } });
+    if (!user) return null;
+    const roles = user.roleAssignments.length ? user.roleAssignments.map((item) => item.role) : [user.role];
+    const requested = typeof payload.role === "string" ? payload.role as UserRole : user.role;
+    return { id: user.id, name: user.name, phone: user.phone, role: roles.includes(requested) ? requested : roles[0], roles };
   } catch {
     return null;
   }
